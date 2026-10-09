@@ -3,39 +3,55 @@ name: Linux Release
 on:
   push:
     branches:
-      - 'trunk'
+      - trunk
     tags:
-      - 'v*'
+      - v*
 
 defaults:
   run:
     shell: bash
 
-
 env:
   PROG: cubiomes-viewer
-  SOURCE_DIR: ${{github.workspace}}
-
+  SOURCE_DIR: ${{ github.workspace }}
 
 jobs:
   build:
-    name: linux-build
-    runs-on: ubuntu-22.04
+    name: linux-build-${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runs-on: ubuntu-22.04
+            artifact-suffix: linux-amd64
+          - arch: arm64
+            runs-on: ubuntu-24.04-arm
+            artifact-suffix: linux-arm64
+
+    runs-on: ${{ matrix.runs-on }}
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Obtain necessary packages
-        run: sudo apt install -y build-essential qtbase5-dev qtchooser qt5-qmake qtbase5-dev-tools
-    
+
+      - name: Install packages
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential qtbase5-dev qtchooser qt5-qmake qtbase5-dev-tools
+
       - name: Build
-        working-directory: ${{env.SOURCE_DIR}}
-        run: mkdir build && cd build && qmake .. && make
-      
+        working-directory: ${{ env.SOURCE_DIR }}
+        run: |
+          mkdir -p build
+          cd build
+          qmake ..
+          make -j"$(nproc)"
+
       - name: Save build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{env.PROG}}-linux
-          path: ${{env.SOURCE_DIR}}/build/cubiomes-viewer
+          name: ${{ env.PROG }}-${{ matrix.artifact-suffix }}
+          path: ${{ env.SOURCE_DIR }}/build/cubiomes-viewer
