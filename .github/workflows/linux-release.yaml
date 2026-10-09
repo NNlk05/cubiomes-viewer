@@ -47,9 +47,13 @@ jobs:
         run: |
           mkdir -p build
           cd build
-          qmake ..
+          if [ "${{ matrix.arch }}" = "amd64" ]; then
+            qmake .. QMAKE_CFLAGS+=-fno-pie QMAKE_CXXFLAGS+=-fno-pie QMAKE_LFLAGS+=-no-pie
+          else
+            qmake ..
+          fi
           make -j"$(nproc)"
-
+          
       - name: Save build artifact
         uses: actions/upload-artifact@v4
         with:
