@@ -33,13 +33,15 @@ jobs:
       - name: Build
         working-directory: ${{env.SOURCE_DIR}}
         run:  |
-              qmake CONFIG+=release ${{env.SOURCE_DIR}}
-              CFLAGS="-isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk" make
+              qmake CONFIG+=release CONFIG+=static ${{env.SOURCE_DIR}}
+              CFLAGS="-isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk" \
+              LDFLAGS="-static-libgcc -static-libstdc++ -Wl,-search_paths_first" \
+              make
 
       - name: Deploy
         working-directory: ${{env.SOURCE_DIR}}
         run:  |
-              macdeployqt ${{env.PROG}}.app -dmg -no-plugins
+              macdeployqt ${{env.PROG}}.app -dmg -always-overwrite
 
       - name: Test
         working-directory: ${{env.SOURCE_DIR}}
@@ -52,4 +54,3 @@ jobs:
         with:
           name: ${{env.PROG}}-macos
           path: ${{env.SOURCE_DIR}}/${{env.PROG}}.dmg
-

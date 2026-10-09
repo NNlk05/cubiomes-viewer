@@ -36,15 +36,15 @@ jobs:
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-ninja
             mingw-w64-cross-mingwarm64-gcc
-            mingw-w64-x86_64-qt5-base
-            mingw-w64-x86_64-qt5-tools
+            mingw-w64-x86_64-qt5-base-static
+            mingw-w64-x86_64-qt5-tools-static
 
       - name: Build
         working-directory: ${{env.SOURCE_DIR}}
         run:  |
               canon_path=$(cygpath -u "$SOURCE_DIR")
               echo "canonical_source_dir=${canon_path}" >> $GITHUB_ENV
-              qmake-qt5 CONFIG+=release $canon_path
+              qmake-qt5 CONFIG+=release CONFIG+=static $canon_path
               make
               
       - name: Deploy
@@ -52,7 +52,6 @@ jobs:
         run:  |
               mkdir ${{env.PROG}}
               cp ${{env.canonical_source_dir}}/release/${{env.PROG}}.exe ${{env.PROG}}
-              windeployqt-qt5 --dir ${{env.PROG}} ${{env.canonical_source_dir}}/release/${{env.PROG}}.exe --compiler-runtime --no-translations --no-system-d3d-compiler --no-opengl-sw --no-angle
               ${{env.canonical_source_dir}}/${{env.PROG}}/${{env.PROG}}.exe --version
 
       - name: Save build artifact
@@ -60,5 +59,3 @@ jobs:
         with:
           name: ${{env.PROG}}-win
           path: ${{env.SOURCE_DIR}}\${{env.PROG}}
-
-
