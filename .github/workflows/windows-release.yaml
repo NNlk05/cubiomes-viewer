@@ -8,60 +8,45 @@ on:
       - 'v*'
   pull_request:
     branches:
-     - 'trunk'
-
-defaults:
-  run:
-    shell: cmd
+      - 'trunk'
 
 env:
-  PROG:         cubiomes-viewer
-  SOURCE_DIR:   ${{github.workspace}}
-
+  PROG: cubiomes-viewer
 
 jobs:
   build:
-    name: build-windows
+    name: build-windows-static
     runs-on: windows-latest
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          aqtsource: git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7
-          version:      '6.11.2'
-          host: 'windows'
-          target: 'desktop'
-          arch: 'win64_mingw'
-          archives: 'qtbase qttools'
-          cache: true
-          setup-python: false
-          tools: 'tools_mingw1310'
-      - name: Build
-        working-directory: ${{env.SOURCE_DIR}}
-        env:
-          CMAKE_GENERATOR: MinGW Makefiles
-          CC: gcc
-          CXX: g++
-        run:  |
-              qmake6 CONFIG+=release ${{env.SOURCE_DIR}}
-              mingw32-make
 
-      - name: Deploy
-        working-directory: ${{env.SOURCE_DIR}}
-        run:  |
-              mkdir ${{env.PROG}}
-              copy ${{env.SOURCE_DIR}}\release\${{env.PROG}}.exe ${{env.PROG}}
-              windeployqt6 --dir ${{env.PROG}} ${{env.SOURCE_DIR}}\release\${{env.PROG}}.exe --compiler-runtime --no-translations --no-system-d3d-compiler --no-opengl-sw
-              ${{env.SOURCE_DIR}}\${{env.PROG}}\${{env.PROG}}.exe --version
+      - name: Setup MSYS2 with Static Qt6
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: false
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-qt6-static
+            make
+
+      - name: Build
+        shell: msys2 {0}
+        run: |
+          export PATH="/ucrt64/qt6-static/bin:$PATH"
+          qmake6 CONFIG+=release CONFIG+=static "QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++"
+          make -j$(nproc)
+
+      - name: Test Executable
+        shell: msys2 {0}
+        run: |
+          ./release/${{ env.PROG }}.exe --version
 
       - name: Save build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{env.PROG}}-win
-          path: ${{env.SOURCE_DIR}}\${{env.PROG}}
-
-
+          name: ${{ env.PROG }}-win-static
+          path: release/${{ env.PROG }}.exe
