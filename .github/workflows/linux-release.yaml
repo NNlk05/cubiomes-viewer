@@ -59,10 +59,19 @@ jobs:
           qmake6 CONFIG+=release ..
           make -j$(nproc)
 
-      - name: Bundle Qt with linuxdeploy (AppImage)
+      - name: Bundle Qt and Package AppImage
         working-directory: ${{ env.SOURCE_DIR }}
         run: |
           ARCH_NAME="${{ matrix.deploy_arch }}"
+
+          sudo wget -q -O /usr/local/bin/linuxdeploy \
+            "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${ARCH_NAME}.AppImage"
+          sudo wget -q -O /usr/local/bin/linuxdeploy-plugin-qt \
+            "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${ARCH_NAME}.AppImage"
+          sudo wget -q -O /usr/local/bin/linuxdeploy-plugin-appimage \
+            "https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/continuous/linuxdeploy-plugin-appimage-${ARCH_NAME}.AppImage"
+
+          sudo chmod +x /usr/local/bin/linuxdeploy*
 
           mkdir -p AppDir/usr/bin
           mkdir -p AppDir/usr/share/applications
@@ -76,38 +85,30 @@ jobs:
           Name=Cubiomes Viewer
           Exec=${{ env.PROG }}
           Icon=${{ env.PROG }}
-          Categories=Game;
+          Categories=Utility;
           Terminal=false
           EOF
 
-          if [ -f rc/icons/cubiomes.png ]; then
-            cp rc/icons/cubiomes.png AppDir/usr/share/icons/hicolor/256x256/apps/${{ env.PROG }}.png
+          REPO_ICON=$(find . -maxdepth 3 -iname "*icon*.png" -o -iname "${{ env.PROG }}.png" | head -n 1)
+          if [ -n "$REPO_ICON" ]; then
+            cp "$REPO_ICON" AppDir/usr/share/icons/hicolor/256x256/apps/${{ env.PROG }}.png
           else
-            convert -size 256x256 xc:royalblue AppDir/usr/share/icons/hicolor/256x256/apps/${{ env.PROG }}.png || \
-            touch AppDir/usr/share/icons/hicolor/256x256/apps/${{ env.PROG }}.png
+            echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" | base64 -d > AppDir/usr/share/icons/hicolor/256x256/apps/${{ env.PROG }}.png
           fi
 
-          # 4. Download matching linuxdeploy binaries
-          wget -q -O linuxdeploy.AppImage \
-            "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${ARCH_NAME}.AppImage"
-          wget -q -O linuxdeploy-plugin-qt.AppImage \
-            "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${ARCH_NAME}.AppImage"
-
-          chmod +x linuxdeploy*.AppImage
-
-          ./linuxdeploy.AppImage --appimage-extract
-          ./linuxdeploy-plugin-qt.AppImage --appimage-extract
-
+          export APPIMAGE_EXTRACT_AND_RUN=1
           export QMAKE=$(which qmake6)
           export ARCH=${ARCH_NAME}
 
-          ./squashfs-root/AppRun \
+          linuxdeploy \
             --appdir AppDir \
             --plugin qt \
             --output appimage \
-            --desktop-file AppDir/usr/share/applications/${{ env.PROG }}.desktop
+            --desktop-file AppDir/usr/share/applications/${{ env.PROG }}.desktop \
+            --icon-file AppDir/usr/share/icons/hicolor/256x256/apps/${{ env.PROG }}.png
 
-          mv ${{ env.PROG }}-*.AppImage ${{ env.PROG }}-linux-${{ matrix.arch }}.AppImage
+          mv Cubiomes_Viewer-*.AppImage ${{ env.PROG }}-linux-${{ matrix.arch }}.AppImage 2>/dev/null || \
+          mv *.AppImage ${{ env.PROG }}-linux-${{ matrix.arch }}.AppImage
 
       - name: Save build artifact
         uses: actions/upload-artifact@v4
