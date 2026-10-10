@@ -14,31 +14,103 @@ defaults:
   run:
     shell: bash
 
-
 env:
   PROG: cubiomes-viewer
-  SOURCE_DIR: ${{github.workspace}}
-
+  SOURCE_DIR: ${{ github.workspace }}
 
 jobs:
   build:
-    name: linux-build
-    runs-on: ubuntu-22.04
+    name: linux-${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            os: ubuntu-22.04
+            deploy_arch: x86_64
+          - arch: aarch64
+            os: ubuntu-24.04-arm
+            deploy_arch: aarch64
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Obtain necessary packages
-        run: sudo apt install -y build-essential qt6-base-dev qtchooser qmake6 qt6-base-dev-tools
-    
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            qt6-base-dev \
+            qt6-base-dev-tools \
+            qmake6 \
+            libgl1-mesa-dev \
+            libfuse2 \
+            file \
+            wget
+
       - name: Build
-        working-directory: ${{env.SOURCE_DIR}}
-        run: mkdir build && cd build && qmake6 .. && make
-      
+        working-directory: ${{ env.SOURCE_DIR }}
+        run: |
+          mkdir build && cd build
+          qmake6 CONFIG+=release ..
+          make -j$(nproc)
+
+      - name: Bundle Qt with linuxdeploy (AppImage)
+        working-directory: ${{ env.SOURCE_DIR }}
+        run: |
+          ARCH_NAME="${{ matrix.deploy_arch }}"
+
+          mkdir -p AppDir/usr/bin
+          mkdir -p AppDir/usr/share/applications
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+
+          cp build/${{ env.PROG }} AppDir/usr/bin/
+
+          cat <<EOF > AppDir/usr/share/applications/${{ env.PROG }}.desktop
+          [Desktop Entry]
+          Type=Application
+          Name=Cubiomes Viewer
+          Exec=${{ env.PROG }}
+          Icon=${{ env.PROG }}
+          Categories=Game;
+          Terminal=false
+          EOF
+
+          if [ -f rc/icons/cubiomes.png ]; then
+            cp rc/icons/cubiomes.png AppDir/usr/share/icons/hicolor/256x256/apps/${{ env.PROG }}.png
+          else
+            convert -size 256x256 xc:royalblue AppDir/usr/share/icons/hicolor/256x256/apps/${{ env.PROG }}.png || \
+            touch AppDir/usr/share/icons/hicolor/256x256/apps/${{ env.PROG }}.png
+          fi
+
+          # 4. Download matching linuxdeploy binaries
+          wget -q -O linuxdeploy.AppImage \
+            "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${ARCH_NAME}.AppImage"
+          wget -q -O linuxdeploy-plugin-qt.AppImage \
+            "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${ARCH_NAME}.AppImage"
+
+          chmod +x linuxdeploy*.AppImage
+
+          ./linuxdeploy.AppImage --appimage-extract
+          ./linuxdeploy-plugin-qt.AppImage --appimage-extract
+
+          export QMAKE=$(which qmake6)
+          export ARCH=${ARCH_NAME}
+
+          ./squashfs-root/AppRun \
+            --appdir AppDir \
+            --plugin qt \
+            --output appimage \
+            --desktop-file AppDir/usr/share/applications/${{ env.PROG }}.desktop
+
+          mv ${{ env.PROG }}-*.AppImage ${{ env.PROG }}-linux-${{ matrix.arch }}.AppImage
+
       - name: Save build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{env.PROG}}-linux
-          path: ${{env.SOURCE_DIR}}/build/cubiomes-viewer
+          name: ${{ env.PROG }}-linux-${{ matrix.arch }}
+          path: ${{ env.SOURCE_DIR }}/${{ env.PROG }}-linux-${{ matrix.arch }}.AppImage
