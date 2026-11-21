@@ -52,7 +52,7 @@ jobs:
         run: pip install aqtinstall
 
       - name: Install Qt (WASM)
-        run: aqt install-qt wasm desktop ${{env.QT_VERSION}} wasm_multithread
+        run: aqt install-qt all_os wasm ${{env.QT_VERSION}} wasm_multithread
 
       - name: Install emsdk
         run: |
