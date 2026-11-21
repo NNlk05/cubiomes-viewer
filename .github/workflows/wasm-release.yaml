@@ -3,7 +3,7 @@ name: WASM Release
 on:
   push:
     tags:
-      - 'v*'
+      - '*.*.*'
 
 defaults:
   run:
