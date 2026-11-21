@@ -67,7 +67,7 @@ jobs:
           . emsdk/emsdk_env.sh
           mkdir -p build
           cd build
-          ${{env.QT_VERSION}}/wasm_multithread/bin/qmake ..
+          ../${{env.QT_VERSION}}/wasm_multithread/bin/qmake ..
           make -j
 
       - name: Prepare GitHub Pages content
