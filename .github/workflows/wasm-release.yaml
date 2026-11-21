@@ -1,0 +1,93 @@
+name: WASM Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PROG: cubiomes-viewer
+  SOURCE_DIR: ${{github.workspace}}
+  QT_VERSION: 6.10.2
+  EMSDK_VERSION: 4.0.21
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-26.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Obtain necessary packages
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            python3 python3-pip python3-venv git libglib2.0-0t64 wget make
+
+      - name: Setup Python venv
+        run: |
+          python3 -m venv .venv
+          echo "$PWD/.venv/bin" >> $GITHUB_PATH
+
+      - name: Install aqtinstall
+        run: pip install aqtinstall
+
+      - name: Install Qt (WASM)
+        run: aqt install-qt wasm desktop ${{env.QT_VERSION}} wasm_multithread
+
+      - name: Install emsdk
+        run: |
+          git clone https://github.com/emscripten-core/emsdk.git
+          cd emsdk
+          ./emsdk install ${{env.EMSDK_VERSION}}
+          ./emsdk activate ${{env.EMSDK_VERSION}}
+
+      - name: Build
+        working-directory: ${{env.SOURCE_DIR}}
+        run: |
+          . emsdk/emsdk_env.sh
+          mkdir -p build
+          cd build
+          ${{env.QT_VERSION}}/wasm_multithread/bin/qmake ..
+          make -j
+
+      - name: Prepare GitHub Pages content
+        working-directory: ${{env.SOURCE_DIR}}
+        run: |
+          tar -czf ${{env.PROG}}.tar.gz --transform 's,^,${{env.PROG}}/,' \
+            build/${{env.PROG}}.html build/${{env.PROG}}.js build/${{env.PROG}}.wasm \
+            build/qtloader.js build/qtlogo.svg
+          mkdir -p ${{env.PROG}}
+          tar -xzf ${{env.PROG}}.tar.gz -C ${{env.PROG}}
+          cd ${{env.PROG}}
+          wget https://raw.githubusercontent.com/gzuidhof/coi-serviceworker/refs/heads/master/coi-serviceworker.min.js
+          sed -i 's,<body onload="init()">,<body onload="init()"><script src="coi-serviceworker.min.js"></script>,' ${{env.PROG}}.html
+          mv ${{env.PROG}}.html index.html
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{env.PROG}}
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
