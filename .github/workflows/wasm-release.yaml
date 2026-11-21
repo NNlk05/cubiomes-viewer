@@ -52,10 +52,10 @@ jobs:
         run: pip install aqtinstall
 
       - name: Install Qt (desktop, host tools)
-        run: aqt install-qt linux desktop ${{env.QT_VERSION}} gcc_64
+        run: aqt install-qt linux desktop ${{env.QT_VERSION}} gcc_64 --archives qtbase qttools
 
       - name: Install Qt (wasm)
-        run: aqt install-qt all_os wasm ${{env.QT_VERSION}} wasm_multithread
+        run: aqt install-qt all_os wasm ${{env.QT_VERSION}} wasm_multithread --archives qtbase qttools
 
       - name: Install emsdk
         run: |
